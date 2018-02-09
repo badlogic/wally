@@ -34,25 +34,31 @@ declare module wally {
     }
     class Wall {
         corners: Array<Point>;
-        height: Number;
+        height: number;
         constructor();
     }
     class Painting {
+        static nextId: number;
+        id: number;
         image: HTMLImageElement;
         width: number;
         height: number;
         position: Point;
         corners: Array<Point>;
         constructor();
+        copy(): Painting;
     }
     class Wally {
         body: JQuery;
         background: HTMLImageElement;
         walls: Wall[];
         paintings: Painting[];
+        hungPaintings: Painting[];
         constructor();
+        testSetup(): void;
         setScreen(screen: Screen): void;
         loadImage(file: File, success: (img: HTMLImageElement) => void, error: () => void): void;
+        wallCenterPoint(): Point;
         updatePaintings(): void;
     }
     interface Screen {
@@ -69,5 +75,8 @@ declare module wally {
     }
     class PaintingMoverScreen implements Screen {
         render(wally: Wally): JQuery;
+        private drawQuadrilateral(ctx, img, points);
+        private drawTriangle(ctx, img, x0, y0, u0, v0, x1, y1, u1, v1, x2, y2, u2, v2);
+        isPointInPolygon(polygon: Array<Point>, point: Point): boolean;
     }
 }

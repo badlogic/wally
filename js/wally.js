@@ -206,6 +206,7 @@ var wally;
     wally_1.Wall = Wall;
     var Painting = (function () {
         function Painting() {
+            this.id = Painting.nextId++;
             this.corners = new Array();
             this.corners.push(new Point());
             this.corners.push(new Point());
@@ -213,16 +214,37 @@ var wally;
             this.corners.push(new Point());
             this.position = new Point();
         }
+        Painting.prototype.copy = function () {
+            var newPainting = new Painting();
+            newPainting.id = this.id;
+            newPainting.image = this.image;
+            newPainting.width = this.width;
+            newPainting.height = this.height;
+            return newPainting;
+        };
+        Painting.nextId = 0;
         return Painting;
     }());
     wally_1.Painting = Painting;
     var Wally = (function () {
         function Wally() {
-            var _this = this;
             this.walls = new Array();
             this.paintings = new Array();
+            this.hungPaintings = new Array();
             this.body = $("#body");
-            var wall = { corners: [{ "x": 1518.72, "y": 687.6800000000001 }, { "x": 2759.68, "y": 701.1200000000001 }, { "x": 2728.32, "y": 2139.2 }, { "x": 1523.2, "y": 2139.2 }], height: 230 };
+            this.setScreen(new BackgroundScreen());
+        }
+        Wally.prototype.testSetup = function () {
+            var _this = this;
+            var wall = {
+                corners: [
+                    new Point(1518.72, 687.6800000000001),
+                    new Point(2759.68, 701.120000000000),
+                    new Point(2728.32, 2139.2),
+                    new Point(1523.2, 2139.2)
+                ],
+                height: 258
+            };
             this.walls.push(wall);
             var background = document.createElement("img");
             background.onload = function () {
@@ -230,16 +252,17 @@ var wally;
                 var painting = document.createElement("img");
                 painting.onload = function () {
                     var p = new Painting();
-                    p.width = 74;
-                    p.height = 74;
+                    p.width = 61;
+                    p.height = 86;
                     p.image = painting;
+                    p.position = _this.wallCenterPoint();
                     _this.paintings.push(p);
                     _this.setScreen(new PaintingMoverScreen());
                 };
-                painting.src = "img/painting-example.jpg";
+                painting.src = "img/rabbit.png";
             };
             background.src = "img/background-example.jpg";
-        }
+        };
         Wally.prototype.setScreen = function (screen) {
             this.body.empty();
             this.body.append(screen.render(this));
@@ -258,7 +281,33 @@ var wally;
             reader.onerror = error;
             reader.readAsDataURL(file);
         };
+        Wally.prototype.wallCenterPoint = function () {
+            var corners = this.walls[0].corners;
+            var x = 0;
+            var y = 0;
+            for (var i = 0; i < corners.length; i++) {
+                x += corners[i].x;
+                y += corners[i].y;
+            }
+            return new Point(x / 4, y / 4);
+        };
         Wally.prototype.updatePaintings = function () {
+            var wall = this.walls[0];
+            var corners = wall.corners;
+            var wallHeightCm = wall.height;
+            var wallHeightLeftPx = corners[0].dst(corners[3]);
+            var cmToPx = wallHeightLeftPx / wallHeightCm;
+            for (var i = 0; i < this.hungPaintings.length; i++) {
+                var painting = this.hungPaintings[i];
+                var topLeftX = painting.position.x - painting.width / 2 * cmToPx;
+                var topLeftY = painting.position.y - painting.height / 2 * cmToPx;
+                var widthPx = painting.width * cmToPx;
+                var heightPx = painting.height * cmToPx;
+                painting.corners[0].set(topLeftX, topLeftY);
+                painting.corners[1].set(topLeftX + widthPx, topLeftY);
+                painting.corners[2].set(topLeftX + widthPx, topLeftY + heightPx);
+                painting.corners[3].set(topLeftX, topLeftY + heightPx);
+            }
         };
         return Wally;
     }());
@@ -300,7 +349,7 @@ var wally;
         function WallDefinitionScreen() {
         }
         WallDefinitionScreen.prototype.render = function (wally) {
-            var dom = $("\n\t\t\t\t<div>\n\t\t\t\t\t<h2>2. Define wall corners</h2>\n\t\t\t\t\t<p>Move the handles to the walls corners and specify the height of your wall.</p>\n\t\t\t\t\t<label>Height (cm)</label>\n\t\t\t\t\t<input id=\"height\" type=\"text\" style=\"width: 10em;\" value=\"230\">\n\t\t\t\t\t<canvas id=\"canvas\"></canvas>\n\t\t\t\t\t<input id=\"set\" type=\"button\" class=\"btn\" value=\"Done\">\n\t\t\t\t</div>\n\t\t\t");
+            var dom = $("\n\t\t\t\t<div>\n\t\t\t\t\t<h2>2. Define wall corners</h2>\n\t\t\t\t\t<p>Move the handles to the walls corners and specify the height of your wall.</p>\n\t\t\t\t\t<label>Height (cm)</label>\n\t\t\t\t\t<input id=\"height\" type=\"text\" style=\"width: 10em;\" value=\"258\">\n\t\t\t\t\t<canvas id=\"canvas\"></canvas>\n\t\t\t\t\t<input id=\"set\" type=\"button\" class=\"btn\" value=\"Done\">\n\t\t\t\t</div>\n\t\t\t");
             var canvas = dom.find("#canvas")[0];
             canvas.width = wally.background.width;
             canvas.height = wally.background.height;
@@ -414,8 +463,6 @@ var wally;
             file[0].addEventListener("change", function () {
                 wally.loadImage(file[0].files[0], function (image) {
                     painting.image = image;
-                    painting.width = parseFloat(width.val());
-                    painting.height = parseFloat(height.val());
                     fileError.empty();
                     filePreview.empty();
                     filePreview.append(image);
@@ -430,6 +477,8 @@ var wally;
                 });
             }, false);
             set.click(function () {
+                painting.width = parseFloat(width.val());
+                painting.height = parseFloat(height.val());
                 wally.paintings.push(painting);
                 wally.setScreen(new PaintingMoverScreen());
             });
@@ -442,45 +491,139 @@ var wally;
         function PaintingMoverScreen() {
         }
         PaintingMoverScreen.prototype.render = function (wally) {
-            var dom = $("\n\t\t\t\t<div>\n\t\t\t\t\t<h2>4. Hang your painting!</h2>\n\t\t\t\t\t<p>Click a painting to add it to the wall. Double click a painting on the wall to delete it.</p>\n\t\t\t\t\t<canvas id=\"canvas\"></canvas>\n\t\t\t\t</div>\n\t\t\t");
+            var _this = this;
+            var dom = $("\n\t\t\t\t<div>\n\t\t\t\t\t<h2>4. Hang your painting!</h2>\n\t\t\t\t\t<p>Click a painting to add it to the wall. Double click a painting on the wall to delete it.</p>\n\t\t\t\t\t<input id=\"newPainting\" type=\"button\" class=\"btn\" value=\"New Painting\">\n\t\t\t\t\t<div id=\"paintings\"></div>\n\t\t\t\t\t<canvas id=\"canvas\"></canvas>\n\t\t\t\t</div>\n\t\t\t");
+            var paintingsDiv = dom.find("#paintings");
+            for (var i = 0; i < wally.paintings.length; i++) {
+                var painting = wally.paintings[i];
+                var img = document.createElement("img");
+                img.src = painting.image.src;
+                (function (p) {
+                    $(img).click(function () {
+                        var hungPainting = p.copy();
+                        hungPainting.position = wally.wallCenterPoint();
+                        wally.hungPaintings.push(hungPainting);
+                        requestAnimationFrame(loop);
+                    });
+                })(painting);
+                paintingsDiv.append(img);
+            }
+            dom.find("#newPainting").click(function () {
+                wally.setScreen(new PaintingDefinitionScreen());
+            });
             var canvas = dom.find("#canvas")[0];
             canvas.width = wally.background.width;
             canvas.height = wally.background.height;
             var input = new wally_1.Input(canvas);
             var ctx = canvas.getContext("2d");
             var loop = function () {
-                requestAnimationFrame(loop);
                 wally.updatePaintings();
                 ctx.drawImage(wally.background, 0, 0);
                 var lineWidth = 1;
                 lineWidth = lineWidth / canvas.clientWidth * canvas.width;
                 ctx.lineWidth = lineWidth;
                 ctx.strokeStyle = "rgba(200, 0, 0, 0.5)";
-                var corners = wally.walls[0].corners;
-                for (var i = 0; i < corners.length; i++) {
-                    var s = corners[i];
-                    var e = i == corners.length - 1 ? corners[0] : corners[i + 1];
-                    ctx.beginPath();
-                    ctx.moveTo(s.x, s.y);
-                    ctx.lineTo(e.x, e.y);
-                    ctx.stroke();
-                }
-                for (var j = 0; j < wally.paintings.length; j++) {
-                    var painting = wally.paintings[j];
+                for (var j = 0; j < wally.hungPaintings.length; j++) {
+                    var painting = wally.hungPaintings[j];
                     var corners = painting.corners;
-                    for (var i = 0; i < corners.length; i++) {
-                        var s = corners[i];
-                        var e = i == corners.length - 1 ? corners[0] : corners[i + 1];
-                        ctx.fillStyle = "rgba(200, 0, 0, 0.5)";
-                        ctx.beginPath();
-                        ctx.moveTo(s.x, s.y);
-                        ctx.lineTo(e.x, e.y);
-                        ctx.stroke();
-                    }
+                    _this.drawQuadrilateral(ctx, painting.image, painting.corners);
                 }
             };
             loop();
+            var offsetX = 0;
+            var offsetY = 0;
+            var selectedPainting = null;
+            var dragged = false;
+            input.addListener({
+                down: function (x, y) {
+                    dragged = false;
+                    selectedPainting = null;
+                    x = x / canvas.clientWidth * canvas.width;
+                    y = y / canvas.clientHeight * canvas.height;
+                    var point = new Point(x, y);
+                    var paintings = wally.hungPaintings;
+                    for (var i = paintings.length - 1; i >= 0; i--) {
+                        var painting = paintings[i];
+                        if (_this.isPointInPolygon(painting.corners, point)) {
+                            selectedPainting = painting;
+                            offsetX = selectedPainting.position.x - x;
+                            offsetY = selectedPainting.position.y - y;
+                            return;
+                        }
+                    }
+                },
+                up: function (x, y) {
+                    if (!dragged && selectedPainting) {
+                        var index = wally.hungPaintings.indexOf(selectedPainting);
+                        wally.hungPaintings.splice(index, 1);
+                        requestAnimationFrame(loop);
+                    }
+                    dragged = false;
+                },
+                dragged: function (x, y) {
+                    dragged = true;
+                    requestAnimationFrame(loop);
+                    if (selectedPainting) {
+                        x = x / canvas.clientWidth * canvas.width;
+                        y = y / canvas.clientHeight * canvas.height;
+                        selectedPainting.position.x = x + offsetX;
+                        selectedPainting.position.y = y + offsetY;
+                    }
+                },
+                moved: function (x, y) {
+                    requestAnimationFrame(loop);
+                }
+            });
             return dom;
+        };
+        PaintingMoverScreen.prototype.drawQuadrilateral = function (ctx, img, points) {
+            var p0 = points[0];
+            var p1 = points[1];
+            var p2 = points[2];
+            var p3 = points[3];
+            this.drawTriangle(ctx, img, p0.x, p0.y, 0, 0, p1.x, p1.y, 1, 0, p2.x, p2.y, 1, 1);
+            this.drawTriangle(ctx, img, p0.x, p0.y, 0, 0, p2.x, p2.y, 1, 1, p3.x, p3.y, 0, 1);
+        };
+        PaintingMoverScreen.prototype.drawTriangle = function (ctx, img, x0, y0, u0, v0, x1, y1, u1, v1, x2, y2, u2, v2) {
+            u0 *= img.width;
+            v0 *= img.height;
+            u1 *= img.width;
+            v1 *= img.height;
+            u2 *= img.width;
+            v2 *= img.height;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.closePath();
+            x1 -= x0;
+            y1 -= y0;
+            x2 -= x0;
+            y2 -= y0;
+            u1 -= u0;
+            v1 -= v0;
+            u2 -= u0;
+            v2 -= v0;
+            var det = 1 / (u1 * v2 - u2 * v1), a = (v2 * x1 - v1 * x2) * det, b = (v2 * y1 - v1 * y2) * det, c = (u1 * x2 - u2 * x1) * det, d = (u1 * y2 - u2 * y1) * det, e = x0 - a * u0 - c * v0, f = y0 - b * u0 - d * v0;
+            ctx.save();
+            ctx.transform(a, b, c, d, e, f);
+            ctx.clip();
+            ctx.drawImage(img, 0, 0);
+            ctx.restore();
+        };
+        PaintingMoverScreen.prototype.isPointInPolygon = function (polygon, point) {
+            var lastVertice = polygon[polygon.length - 1];
+            var oddNodes = false;
+            for (var i = 0; i < polygon.length; i++) {
+                var vertice = polygon[i];
+                if ((vertice.y < point.y && lastVertice.y >= point.y) || (lastVertice.y < point.y && vertice.y >= point.y)) {
+                    if (vertice.x + (point.y - vertice.y) / (lastVertice.y - vertice.y) * (lastVertice.x - vertice.x) < point.x) {
+                        oddNodes = !oddNodes;
+                    }
+                }
+                lastVertice = vertice;
+            }
+            return oddNodes;
         };
         return PaintingMoverScreen;
     }());
