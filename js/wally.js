@@ -452,6 +452,19 @@ var wally;
                 requestAnimationFrame(loop);
                 wally.updatePaintings();
                 ctx.drawImage(wally.background, 0, 0);
+                var lineWidth = 1;
+                lineWidth = lineWidth / canvas.clientWidth * canvas.width;
+                ctx.lineWidth = lineWidth;
+                ctx.strokeStyle = "rgba(200, 0, 0, 0.5)";
+                var corners = wally.walls[0].corners;
+                for (var i = 0; i < corners.length; i++) {
+                    var s = corners[i];
+                    var e = i == corners.length - 1 ? corners[0] : corners[i + 1];
+                    ctx.beginPath();
+                    ctx.moveTo(s.x, s.y);
+                    ctx.lineTo(e.x, e.y);
+                    ctx.stroke();
+                }
                 for (var j = 0; j < wally.paintings.length; j++) {
                     var painting = wally.paintings[j];
                     var corners = painting.corners;
